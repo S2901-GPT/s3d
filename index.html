@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>S3D AI Builder</title>
+<style>
+body{margin:0;font-family:Tahoma;background:#0b1220;color:#fff}
+.wrap{display:grid;grid-template-columns:340px 1fr;gap:16px;padding:16px}
+.panel{background:#111827;border-radius:16px;padding:16px}
+textarea,button{width:100%;margin-top:8px;padding:12px;border-radius:10px;border:1px solid #334155;background:#020617;color:#fff}
+button{background:#0ea5e9}
+.phone{width:390px;height:800px;background:#f8fafc;color:#111;border-radius:40px;margin:auto;padding:40px 16px;overflow:auto}
+.block{margin:10px 0;padding:14px;border-radius:14px;background:#fff}
+.hero{background:#dbeafe}
+.btn{background:#0ea5e9;color:#fff;text-align:center}
+</style>
+</head>
+
+<body>
+
+<div class="wrap">
+
+<div class="panel">
+<h3>AI Input</h3>
+<textarea id="input"></textarea>
+<button onclick="build()">Generate</button>
+</div>
+
+<div class="phone" id="screen"></div>
+
+</div>
+
+<script>
+async function build(){
+let prompt=document.getElementById('input').value;
+
+let res=await fetch('/api', {
+method:'POST',
+body: JSON.stringify({prompt})
+});
+
+let data=await res.json();
+
+document.getElementById('screen').innerHTML=
+data.blocks.map(b=>`<div class="block ${b.type}">${b.content}</div>`).join('');
+}
+</script>
+
+</body>
+</html>
