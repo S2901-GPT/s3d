@@ -16,36 +16,29 @@ button{background:#0ea5e9}
 .btn{background:#0ea5e9;color:#fff;text-align:center}
 </style>
 </head>
-
 <body>
-
 <div class="wrap">
-
 <div class="panel">
 <h3>AI Input</h3>
-<textarea id="input"></textarea>
+<textarea id="input" placeholder="اكتب بالعربي هنا"></textarea>
 <button onclick="build()">Generate</button>
 </div>
-
 <div class="phone" id="screen"></div>
-
 </div>
-
 <script>
 async function build(){
-let prompt=document.getElementById('input').value;
-
-let res=await fetch('/api', {
-method:'POST',
-body: JSON.stringify({prompt})
-});
-
-let data=await res.json();
-
-document.getElementById('screen').innerHTML=
-data.blocks.map(b=>`<div class="block ${b.type}">${b.content}</div>`).join('');
+  const prompt=document.getElementById('input').value;
+  const screen=document.getElementById('screen');
+  screen.innerHTML='<div class="block">جاري التوليد...</div>';
+  try{
+    const res=await fetch('/api/generate',{method:'POST',body:JSON.stringify({prompt})});
+    const data=await res.json();
+    if(!res.ok||data.error){throw new Error(data.error||'AI error')}
+    screen.innerHTML=(data.blocks||[]).map(b=>`<div class="block ${b.type||''}">${b.content||''}</div>`).join('');
+  }catch(e){
+    screen.innerHTML='<div class="block">حدث خطأ. تأكد من OPENAI_API_KEY في Vercel.</div>';
+  }
 }
 </script>
-
 </body>
 </html>
