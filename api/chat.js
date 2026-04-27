@@ -8,7 +8,33 @@ function normalizeTool(tool){
   return tool;
 }
 
-const SYSTEM_MESSAGE=`You are an AI UI Builder inside the S3D AI Builder project.
+function wantsFullPage(message,body){
+  const m=String(message||'').toLowerCase();
+  const isEmpty=!body.hasPageContent&&(!body.domSummary||!body.domSummary.count);
+  return isEmpty||/انشاء صفحة|إنشاء صفحة|ابن صفحة|بناء صفحة|build page|generate page|create page|full html/i.test(m);
+}
+
+const HTML_SYSTEM_MESSAGE=`You are an AI UI Builder inside the S3D AI Builder project.
+
+When the user asks to create, build, or generate a page, return FULL HTML ONLY.
+Do NOT return JSON.
+Do NOT use tools.
+Do NOT ask questions.
+Build immediately.
+
+Requirements:
+- Arabic RTL page.
+- Mobile-first responsive design.
+- Use Tailwind CDN in the head.
+- Return a complete document starting with <!DOCTYPE html>.
+- Include: html lang="ar" dir="rtl", head, body.
+- Include multiple sections, cards, headings, paragraphs, examples, and practical content.
+- Professional SaaS-like visual design.
+- No external images unless using gradients/placeholders.
+- No script tags.
+- No unsafe inline event handlers.`;
+
+const JSON_SYSTEM_MESSAGE=`You are an AI UI Builder inside the S3D AI Builder project.
 
 IMPORTANT:
 You must ALWAYS return a valid JSON response.
@@ -26,95 +52,27 @@ JSON format:
   }
 }
 
-----------------------------------------
-
 CORE BEHAVIOR:
 
-If the user asks to:
-- create a page
-- build content
-- generate sections
-- or gives a general topic
-
-You MUST:
-
-- NOT ask for more details
-- NOT ask questions
-- NOT wait for clarification
-
-Instead:
-
-- Automatically generate a full structured page
-- Be proactive
-- Assume a professional layout
-
-----------------------------------------
-
-PAGE BUILDING RULES:
-
-When building a page:
-
-1. Create a main title
-2. Create multiple sections
-3. Each section must include:
-   - heading
-   - description
-   - structured content (lists or cards)
-
-4. Always include:
-   - introduction
-   - main sections
-   - explanations
-   - examples if possible
-
-----------------------------------------
+If a page already exists, use tools to modify it.
+Do NOT rebuild the full page unless the user explicitly asks.
+Do NOT ask questions.
+Be proactive.
 
 TOOLS USAGE:
-
-You MUST use tools to build the page.
-
-Do NOT generate raw HTML.
-
-Use tools step-by-step:
-
-- create_component
-- update_text
-- update_style
-
-If full page requested:
-→ start creating sections immediately
-
-----------------------------------------
+- Use tools for edits.
+- Do NOT generate raw HTML in edit mode.
+- Return ONE tool per response.
 
 SELECTOR RULES:
+- Use selectedSelector if available.
+- If not available, use "body".
 
-- Use selectedSelector if available
-- If not available → use "body"
-
-----------------------------------------
-
-RESPONSE RULES:
-
-- Always return JSON
-- Always include the word JSON implicitly in behavior
-- Return ONE tool per response
-- Keep reply short
-
-----------------------------------------
-
-EXAMPLE:
-
-User:
-"انشاء صفحة عن متلازمة اسبرجر"
-
-Expected behavior:
-
-- AI must NOT ask anything
-- AI must immediately start building
-
-----------------------------------------
-
-أي سلوك يسأل المستخدم عن تفاصيل يعتبر خطأ.`;
+Rules:
+- Always return JSON.
+- Never return text outside JSON.
+- If no tool is needed, set "tool": null.
+- Keep reply short.`;
 
 export default async function handler(req,res){
   try{
@@ -125,6 +83,7 @@ export default async function handler(req,res){
     const message=body.message||'';
     if(!message)return res.status(400).json({error:'Missing message'});
 
+    const fullPage=wantsFullPage(message,body);
     const payload={
       message,
       selectedSelector:body.selectedSelector,
@@ -137,20 +96,23 @@ export default async function handler(req,res){
       publicViewProtected:true
     };
 
+    const requestBody={
+      model:'gpt-4o-mini',
+      messages:[
+        {role:'system',content:fullPage?HTML_SYSTEM_MESSAGE:JSON_SYSTEM_MESSAGE},
+        {role:'user',content:fullPage?message:JSON.stringify(payload)}
+      ]
+    };
+
+    if(!fullPage)requestBody.response_format={type:'json_object'};
+
     const response=await fetch('https://api.openai.com/v1/chat/completions',{
       method:'POST',
       headers:{
         'Content-Type':'application/json',
         'Authorization':'Bearer '+process.env.OPENAI_API_KEY
       },
-      body:JSON.stringify({
-        model:'gpt-4o-mini',
-        response_format:{type:'json_object'},
-        messages:[
-          {role:'system',content:SYSTEM_MESSAGE},
-          {role:'user',content:JSON.stringify(payload)}
-        ]
-      })
+      body:JSON.stringify(requestBody)
     });
 
     const data=await response.json();
@@ -160,8 +122,17 @@ export default async function handler(req,res){
     }
 
     const content=data.choices?.[0]?.message?.content||'';
-    let json;
 
+    if(fullPage){
+      return res.status(200).json({
+        mode:'html',
+        reply:'تم إنشاء الصفحة',
+        html:content,
+        tool:null
+      });
+    }
+
+    let json;
     try{
       json=JSON.parse(content);
     }catch(parseError){
@@ -173,6 +144,7 @@ export default async function handler(req,res){
     }
 
     return res.status(200).json({
+      mode:'tool',
       reply:json.reply||'تم',
       tool:normalizeTool(json.tool),
       requiresConfirmation:json.requiresConfirmation||false,
