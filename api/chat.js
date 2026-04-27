@@ -8,70 +8,71 @@ function normalizeTool(tool){
   return tool;
 }
 
-function wantsFullPage(message,body){
+function wantsFullPage(message){
   const m=String(message||'').toLowerCase();
-  const isEmpty=!body.hasPageContent&&(!body.domSummary||!body.domSummary.count);
-  return isEmpty||/انشاء صفحة|إنشاء صفحة|ابن صفحة|بناء صفحة|build page|generate page|create page|full html/i.test(m);
+  return /انشاء صفحة|إنشاء صفحة|ابن صفحة|بناء صفحة|create page|build page|generate page/i.test(m);
 }
 
-const HTML_SYSTEM_MESSAGE=`You are an AI UI Builder inside the S3D AI Builder project.
-
-When the user asks to create, build, or generate a page, return FULL HTML ONLY.
-Do NOT return JSON.
-Do NOT use tools.
-Do NOT ask questions.
-Build immediately.
-
-Requirements:
-- Arabic RTL page.
-- Mobile-first responsive design.
-- Use Tailwind CDN in the head.
-- Return a complete document starting with <!DOCTYPE html>.
-- Include: html lang="ar" dir="rtl", head, body.
-- Include multiple sections, cards, headings, paragraphs, examples, and practical content.
-- Professional SaaS-like visual design.
-- No external images unless using gradients/placeholders.
-- No script tags.
-- No unsafe inline event handlers.`;
-
-const JSON_SYSTEM_MESSAGE=`You are an AI UI Builder inside the S3D AI Builder project.
+const HTML_SYSTEM_MESSAGE=`You are an AI Web Builder.
 
 IMPORTANT:
-You must ALWAYS return a valid JSON response.
-Do NOT return plain text.
+
+If the user asks to create a page:
+
+- Return FULL HTML document
+- Do NOT return JSON
+- Do NOT use tools
+- Do NOT ask questions
+
+HTML must include:
+
+- <!DOCTYPE html>
+- Tailwind CSS CDN
+- RTL support
+- Mobile-first design
+- Sections, headings, cards
+
+----------------------------------------
+
+If the page already exists:
+
+- Use tools (update_text, update_style, etc.)
+- Return JSON only
+
+----------------------------------------
+
+GENERAL RULES:
+
+- Never ask for clarification
+- Always act immediately
+- Be proactive`;
+
+const JSON_SYSTEM_MESSAGE=`You are an AI Web Builder.
+
+IMPORTANT:
+The page already exists.
+Use tools only.
+Return JSON only.
+Do NOT return HTML.
+Do NOT ask questions.
 
 The response MUST include JSON.
 
 JSON format:
-
 {
-  "reply": "short message",
-  "tool": {
-    "name": "tool_name",
-    "params": {}
+  "reply":"short message",
+  "tool":{
+    "name":"tool_name",
+    "params":{}
   }
 }
-
-CORE BEHAVIOR:
-
-If a page already exists, use tools to modify it.
-Do NOT rebuild the full page unless the user explicitly asks.
-Do NOT ask questions.
-Be proactive.
-
-TOOLS USAGE:
-- Use tools for edits.
-- Do NOT generate raw HTML in edit mode.
-- Return ONE tool per response.
-
-SELECTOR RULES:
-- Use selectedSelector if available.
-- If not available, use "body".
 
 Rules:
 - Always return JSON.
 - Never return text outside JSON.
-- If no tool is needed, set "tool": null.
+- Use selectedSelector if provided.
+- If selectedSelector is missing, use "body".
+- Return one tool only.
 - Keep reply short.`;
 
 export default async function handler(req,res){
@@ -83,7 +84,7 @@ export default async function handler(req,res){
     const message=body.message||'';
     if(!message)return res.status(400).json({error:'Missing message'});
 
-    const fullPage=wantsFullPage(message,body);
+    const fullPage=wantsFullPage(message);
     const payload={
       message,
       selectedSelector:body.selectedSelector,
@@ -116,20 +117,13 @@ export default async function handler(req,res){
     });
 
     const data=await response.json();
-
-    if(!response.ok){
-      return res.status(response.status).json({error:data.error?.message||'AI failed'});
-    }
+    if(!response.ok)return res.status(response.status).json({error:data.error?.message||'AI failed'});
 
     const content=data.choices?.[0]?.message?.content||'';
 
     if(fullPage){
-      return res.status(200).json({
-        mode:'html',
-        reply:'تم إنشاء الصفحة',
-        html:content,
-        tool:null
-      });
+      res.setHeader('Content-Type','text/html; charset=utf-8');
+      return res.status(200).send(content);
     }
 
     let json;
@@ -144,7 +138,6 @@ export default async function handler(req,res){
     }
 
     return res.status(200).json({
-      mode:'tool',
       reply:json.reply||'تم',
       tool:normalizeTool(json.tool),
       requiresConfirmation:json.requiresConfirmation||false,
