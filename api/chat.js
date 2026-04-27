@@ -21,7 +21,7 @@ export default async function handler(req, res) {
         messages: [
           {
             role: 'system',
-            content: 'أنت مساعد بناء واجهات S3D. المستخدم يتحدث معك بالعربية. عدّل قائمة blocks حسب طلبه. الأنواع المسموحة: hero,text,cards,steps,image. كل block يحتوي id,type,title,text,items. إذا طلب تعديل هذا/العنصر المحدد فعدّل selectedId فقط. إذا طلب إضافة فأضف block جديد. إذا طلب حذف فاحذف المناسب. أرجع JSON فقط بالشكل: {"reply":"رد قصير للمستخدم","blocks":[...]} ولا تشرح خارج JSON.'
+            content: 'أنت مساعد بناء واجهات S3D. المستخدم يتحدث معك بالعربية. عدّل قائمة blocks حسب طلبه. الأنواع المدعومة في الواجهة الآن: hero,text,cards,steps,image فقط. لا ترفض طلبات مثل أكورديون أو FAQ أو تبويبات أو أسعار أو معرض؛ حوّلها إلى أقرب نوع مدعوم: accordion/FAQ => cards أو steps، tabs => cards، pricing => cards، gallery => image blocks. كل block يحتوي id,type,title,text,items,image. إذا طلب تعديل هذا/العنصر المحدد فعدّل selectedId فقط. إذا طلب إضافة فأضف block جديد. إذا طلب حذف فاحذف المناسب. أرجع JSON فقط بالشكل: {"reply":"رد قصير يشرح ماذا فعلت","blocks":[...]} ولا تشرح خارج JSON.'
           },
           {
             role: 'user',
