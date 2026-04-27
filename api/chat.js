@@ -8,94 +8,86 @@ function normalizeTool(tool){
   return tool;
 }
 
-const SYSTEM_MESSAGE=`أنت محرك بناء محتوى داخل S3D Builder.
+const SYSTEM_MESSAGE=`أنت تعمل داخل S3D Builder.
 
-ممنوع إرجاع HTML كامل.
-ممنوع إرجاع <!DOCTYPE html> أو <html>.
-ممنوع إرجاع نص فقط إذا كان الطلب قابل للتنفيذ.
+قواعد التنفيذ الإلزامية:
 
-أي نص طويل أو عنوان = اعتبره طلب إنشاء محتوى كامل وليس تعديل بسيط.
-ممنوع استخدام update_text فقط في هذه الحالة.
+1) ممنوع إرسال HTML كامل:
+- لا تستخدم <!DOCTYPE>
+- لا تستخدم <html> أو <body>
+- لا تستخدم document.write
 
-يجب دائمًا إرجاع JSON صالح فقط بدون أي نص إضافي.
+2) أي طلب يجب تنفيذه باستخدام tools فقط.
 
-هيكل الرد الإجباري:
+3) إذا كان الطلب:
+- قصير → استخدم update_text
+- طويل / عنوان / يحتوي "دليل" أو "تحليل" أو "شرح" → أنشئ صفحة كاملة
+
+4) عند إنشاء صفحة:
+يجب استخدام batch_update ويحتوي على:
+- create_section (hero)
+- update_text
+- create_section (text)
+- update_text
+- create_section (cards أو steps)
+- update_text
+
+5) الرد يجب أن يكون JSON فقط بدون markdown أو شرح:
 {
-  "reply": "وصف قصير",
-  "tool": {
-    "name": "اسم الأداة",
-    "params": { }
-  }
-}
-
-قواعد مهمة:
-- يجب دائمًا اختيار tool وتنفيذه إذا كان الطلب تعديل.
-- لا تكتب "تم فهم الطلب" إطلاقًا.
-- إذا كان الطلب عام، قم بتحويله إلى إجراءات فعلية باستخدام الأدوات.
-- أي طلب فيه "إنشاء" أو "انشاء" أو "تحليل" أو "بناء" أو "create" أو "build" أو "generate" → استخدم batch_update.
-- أي نص طويل أو عنوان طويل → استخدم batch_update + create_section + update_text.
-- يجب بناء صفحة كاملة تحتوي على Hero و Text و Cards أو Steps.
-- أي محتوى طويل → ضعه داخل text.
-- لا ترجع رد بدون tool إلا إذا كان مستحيل التنفيذ.
-- لا تستخدم markdown.
-- لا تستخدم \`\`\`json.
-- لا تضف شرح خارج JSON.
-- لا تسأل المستخدم عن تفاصيل.
-- استخدم selectedSelector إذا كان متوفرًا للتعديلات فقط، وليس عند بناء صفحة كاملة.
-- استخدم أداة واحدة فقط في الرد، ويمكن أن تكون batch_update وبداخلها عدة tools.
-
-هيكل بناء صفحة كاملة:
-{
-  "reply": "تم إنشاء صفحة كاملة",
+  "reply": "تم التنفيذ",
   "tool": {
     "name": "batch_update",
     "params": {
-      "tools": [
-        { "name": "create_section", "params": {"type": "hero"} },
-        { "name": "update_text", "params": {"title": "العنوان", "text": "الوصف"} },
-        { "name": "create_section", "params": {"type": "text"} },
-        { "name": "update_text", "params": {"text": "شرح مفصل"} },
-        { "name": "create_section", "params": {"type": "cards"} },
-        { "name": "update_text", "params": {"items": "عنصر1:شرح|عنصر2:شرح"} }
-      ]
+      "tools": []
     }
   }
 }
+
+6) ممنوع:
+- إرسال نص عادي بدون tool
+- إرسال HTML
+- إرسال \`\`\`json أو \`\`\`html
+
+7) الهدف:
+تنفيذ التعديل داخل الصفحة الحالية فقط بدون استبدالها.
 
 أي رد غير JSON سيتم اعتباره خطأ.`;
 
 function stripCodeFence(text){
   return String(text||'')
     .trim()
-    .replace(/^```(?:json)?\s*/i,'')
+    .replace(/^```(?:json|html)?\s*/i,'')
     .replace(/\s*```$/,'')
     .trim();
 }
 
 function shouldBuildFullContent(message){
   const m=String(message||'').trim();
-  if(/إنشاء|انشاء|تحليل|بناء|صفحة|create|build|generate/i.test(m))return true;
+  if(/إنشاء|انشاء|تحليل|بناء|صفحة|دليل|شرح|create|build|generate|guide|analysis|explain/i.test(m))return true;
   return m.length>=45 && !/غيّر|غير|عدّل|عدل|احذف|حذف|لون|خط|كبّر|صغّر/i.test(m);
 }
 
 function shouldForceTool(message){
-  return /إنشاء|انشاء|تحليل|بناء|create|build|generate|أضف|اضف|غيّر|غير|عدّل|عدل|حسّن|حسن|رتّب|رتب|احذف|حذف/i.test(String(message||'')) || shouldBuildFullContent(message);
+  return shouldBuildFullContent(message)||/أضف|اضف|غيّر|غير|عدّل|عدل|حسّن|حسن|رتّب|رتب|احذف|حذف/i.test(String(message||''));
 }
 
 function buildPageTool(message){
-  const topic=String(message||'صفحة محتوى').replace(/^(أنشئ|انشئ|إنشاء|انشاء|بناء|ابن|create|build|generate)\s*/i,'').trim()||'صفحة محتوى';
+  const topic=String(message||'صفحة محتوى')
+    .replace(/^(أنشئ|انشئ|إنشاء|انشاء|بناء|ابن|create|build|generate)\s*/i,'')
+    .trim()||'صفحة محتوى';
+
   return {
     name:'batch_update',
     params:{
       tools:[
         {name:'create_section',params:{type:'hero'}},
-        {name:'update_text',params:{title:topic,text:'مقدمة منظمة تعرض الفكرة الأساسية وتضع القارئ في سياق واضح ومباشر.'}},
+        {name:'update_text',params:{title:topic,text:'مقدمة واضحة ومنظمة تعرض الموضوع بأسلوب مباشر مناسب للجوال وتضع القارئ في سياق سريع.'}},
         {name:'create_section',params:{type:'text'}},
-        {name:'update_text',params:{title:'شرح تفصيلي',text:'شرح مفصل ومنظم حول '+topic+'، يتناول المفهوم الأساسي، أهميته، أبرز النقاط المرتبطة به، وكيف يمكن فهمه أو تطبيقه بصورة عملية وواضحة.'}},
+        {name:'update_text',params:{title:'شرح شامل',text:'شرح مفصل حول '+topic+'، يتناول الفكرة الرئيسية، الخلفية، النقاط المهمة، وأفضل طريقة لفهم الموضوع أو تطبيقه داخل سياق عملي واضح.'}},
         {name:'create_section',params:{type:'cards'}},
-        {name:'update_text',params:{title:'محاور رئيسية',items:'المفهوم الأساسي:تعريف مبسط وواضح للموضوع|الأهمية:لماذا يعتبر هذا الموضوع مهمًا للقارئ|أمثلة عملية:أمثلة تساعد على تحويل الفكرة إلى فهم قابل للتطبيق'}},
+        {name:'update_text',params:{title:'محاور رئيسية',items:'الفكرة الأساسية:تعريف مبسط وواضح للموضوع|الأهمية:لماذا يستحق هذا الموضوع الانتباه|التطبيق العملي:كيف يمكن تحويل الفكرة إلى خطوات قابلة للتنفيذ'}},
         {name:'create_section',params:{type:'steps'}},
-        {name:'update_text',params:{title:'خطوات الفهم',items:'ابدأ بتحديد الفكرة الرئيسية|قسّم الموضوع إلى محاور صغيرة|اربط كل محور بمثال واقعي|راجع الخلاصة وحدد الإجراء التالي'}}
+        {name:'update_text',params:{title:'خطوات عملية',items:'حدد الهدف من الصفحة|اقرأ المحاور الرئيسية|اربط كل محور بمثال واقعي|استخدم الخلاصة لاتخاذ قرار أو إجراء'}}
       ]
     }
   };
@@ -153,10 +145,10 @@ export default async function handler(req,res){
 
     const content=stripCodeFence(data.choices?.[0]?.message?.content||'{}');
 
-    if(/^\s*<!DOCTYPE html/i.test(content)||/^\s*<html/i.test(content)){
+    if(/^\s*<!DOCTYPE/i.test(content)||/^\s*<html/i.test(content)||/^\s*<body/i.test(content)||/document\.write/i.test(content)){
       return res.status(502).json({
-        error:'AI returned HTML instead of JSON',
-        detail:'HTML responses are not allowed from /api/chat.'
+        error:'AI returned forbidden HTML response',
+        detail:'Only JSON tool responses are allowed from /api/chat.'
       });
     }
 
