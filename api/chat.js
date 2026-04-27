@@ -1,71 +1,102 @@
 function normalizeTool(tool){
-  const names=[
-    'update_text','update_style','create_component','delete_component','reorder_layout','highlight_element','preview_change','apply_change','reset_section',
-    'replace_text','append_text','update_typography','update_spacing','apply_theme','duplicate_component','move_component','create_section','split_section','merge_sections','add_button','add_link','scroll_to_element','focus_element','batch_update','validate_selector','get_selected_element_info','get_dom_summary','save_snapshot','restore_snapshot'
-  ];
+  const names=['update_style','update_spacing','update_typography','apply_theme','batch_update'];
   if(!tool||names.indexOf(tool.name)<0)return null;
   tool.params=tool.params||{};
+  if(tool.name==='batch_update'){
+    const tools=Array.isArray(tool.params.tools)?tool.params.tools:[];
+    tool.params.tools=tools.map(normalizeTool).filter(Boolean);
+    if(!tool.params.tools.length)return null;
+  }
   return tool;
 }
 
-const SYSTEM_MESSAGE=`أنت محرك بناء محتوى احترافي داخل S3D Builder.
+const SYSTEM_MESSAGE=`أنت مساعد تصميم احترافي داخل S3D Builder.
 
-الهدف ليس إنشاء أقسام فقط، بل إنشاء محتوى عميق ومفيد.
+مهمتك:
+تحسين التصميم وتمكين التحكم اليدوي فقط بدون إنشاء محتوى أو تغيير النصوص.
 
-قواعد التنفيذ الإلزامية:
+القواعد الصارمة:
 
-1) ممنوع إرسال HTML كامل:
-- لا تستخدم <!DOCTYPE>
-- لا تستخدم <html> أو <body>
-- لا تستخدم document.write
+1) ممنوع تمامًا:
+- إنشاء HTML
+- استخدام <!DOCTYPE> أو <html> أو <body>
+- استخدام document.write
+- تعديل النصوص أو إنشاء محتوى
+- استخدام update_text
 
-2) أي طلب يجب تنفيذه باستخدام tools فقط.
+2) المسموح فقط:
+- update_style
+- update_spacing
+- update_typography
+- apply_theme
+- batch_update
 
-3) ممنوع إنشاء محتوى فارغ أو placeholder مثل:
-- "عنوان"
-- "شرح مختصر"
-- "الخطوة الأولى"
-- "عنصر1"
-- "نص تجريبي"
-هذا يعتبر فشل.
+الأهداف:
+- تحسين الشكل العام UI
+- جعل التصميم حديث Modern / Glass / Dark
+- تحسين تجربة المستخدم
+- تمكين التحكم اليدوي في الخصائص
 
-4) إذا كان الطلب:
-عنوان كبير / دليل / تحليل / شرح / نص طويل
-→ يجب إنشاء محتوى حقيقي مفصل باستخدام batch_update.
+قواعد التصميم:
+- استخدم ألوان متناسقة و gradients احترافية عند الحاجة
+- حافظ على تباين واضح
+- padding بين 16px و 32px
+- borderRadius بين 16px و 24px
+- shadow ناعم: 0 10px 30px rgba(0,0,0,0.3)
+- fontSize واضح 16px+
+- lineHeight مريح 1.6 إلى 1.9
 
-5) عند إنشاء الصفحة استخدم batch_update ويجب أن يحتوي على:
-- Hero: عنوان قوي + وصف احترافي واضح
-- Text: شرح عميق 3 إلى 5 أسطر على الأقل
-- Cards: كل بطاقة تحتوي عنوان واضح + شرح مفيد وليس جملة واحدة
-- Steps: خطوات حقيقية مفهومة وليست placeholders
+التحكم اليدوي:
+عند طلب "تحكم" أو "تصميم" أو "تعديل الشكل" ركّز على:
+- background
+- color
+- padding
+- borderRadius
+- boxShadow
+- fontSize
 
-6) أسلوب الكتابة:
-- عربي واضح
-- بدون حشو
-- معلومات حقيقية ومترابطة
-- لا تستخدم كلمات عامة
-
-7) الرد يجب أن يكون JSON فقط بدون markdown أو شرح:
+هيكل الرد إجباري JSON فقط بدون شرح أو markdown:
 {
-  "reply": "تم إنشاء محتوى احترافي",
+  "reply": "تم تحسين التصميم",
   "tool": {
     "name": "batch_update",
     "params": {
-      "tools": []
+      "tools": [
+        {
+          "name": "update_style",
+          "params": {
+            "background": "#16161a",
+            "color": "#ffffff",
+            "borderRadius": "20px",
+            "boxShadow": "0 20px 60px rgba(0,0,0,0.4)"
+          }
+        },
+        {
+          "name": "update_spacing",
+          "params": {
+            "padding": "24px"
+          }
+        },
+        {
+          "name": "update_typography",
+          "params": {
+            "fontSize": "18px",
+            "lineHeight": "1.8"
+          }
+        }
+      ]
     }
   }
 }
 
-8) ممنوع:
-- إرسال نص عادي بدون tool
-- إرسال HTML
-- إرسال \`\`\`json أو \`\`\`html
-- استخدام update_text فقط في طلبات المحتوى الكبير
+ملاحظات مهمة:
+- لا تستخدم update_text
+- لا ترجع HTML
+- لا ترجع نص عادي بدون tool
+- كل تعديل يجب أن يكون مرئي داخل الصفحة الحالية فقط
 
-9) الهدف:
-تنفيذ التعديل داخل الصفحة الحالية فقط بدون استبدالها.
-
-أي رد غير JSON أو أي محتوى سطحي سيتم اعتباره خطأ.`;
+الهدف النهائي:
+تحويل الصفحة إلى تصميم احترافي مع تحكم يدوي كامل بدون كسر النظام.`;
 
 function stripCodeFence(text){
   return String(text||'')
@@ -75,63 +106,19 @@ function stripCodeFence(text){
     .trim();
 }
 
-function shouldBuildFullContent(message){
-  const m=String(message||'').trim();
-  if(/إنشاء|انشاء|تحليل|بناء|صفحة|دليل|شرح|create|build|generate|guide|analysis|explain/i.test(m))return true;
-  return m.length>=45 && !/غيّر|غير|عدّل|عدل|احذف|حذف|لون|خط|كبّر|صغّر/i.test(m);
-}
-
-function shouldForceTool(message){
-  return shouldBuildFullContent(message)||/أضف|اضف|غيّر|غير|عدّل|عدل|حسّن|حسن|رتّب|رتب|احذف|حذف/i.test(String(message||''));
-}
-
-function buildPageTool(message){
-  const topic=String(message||'صفحة محتوى')
-    .replace(/^(أنشئ|انشئ|إنشاء|انشاء|بناء|ابن|create|build|generate)\s*/i,'')
-    .trim()||'صفحة محتوى احترافية';
-
+function fallbackDesignTool(selectedSelector){
+  const selector=selectedSelector||'body';
   return {
     name:'batch_update',
     params:{
       tools:[
-        {name:'create_section',params:{type:'hero'}},
-        {name:'update_text',params:{
-          title:'دليل احترافي حول '+topic,
-          text:'صفحة منظمة تقدم '+topic+' بطريقة واضحة وعملية. تبدأ بتوضيح الفكرة الأساسية، ثم تنتقل إلى التفاصيل المهمة التي تساعد القارئ على الفهم واتخاذ قرار أو بناء تصور صحيح. الهدف أن يحصل القارئ على محتوى مفيد ومترابط، وليس مجرد عناوين عامة.'
-        }},
-        {name:'create_section',params:{type:'text'}},
-        {name:'update_text',params:{
-          title:'فهم الموضوع بعمق',
-          text:'يعتمد فهم '+topic+' على ربط المفهوم بالسياق العملي الذي يظهر فيه. لذلك لا يكفي تعريفه بشكل مختصر؛ يجب معرفة أسبابه، آثاره، وكيف يتغير تأثيره بحسب الأشخاص أو البيئة أو طريقة التطبيق. عندما يتم تقسيم الموضوع إلى محاور واضحة، يصبح التعامل معه أسهل وأكثر دقة. هذا القسم يقدم شرحًا مركزًا يساعد القارئ على تكوين صورة متكاملة دون الدخول في تفاصيل مشتتة.'
-        }},
-        {name:'create_section',params:{type:'cards'}},
-        {name:'update_text',params:{
-          title:'محاور رئيسية يجب الانتباه لها',
-          items:'المفهوم الأساسي:يعرض هذا المحور المعنى الحقيقي للموضوع بعيدًا عن التعريفات السطحية، مع توضيح لماذا يحتاج القارئ إلى فهمه ضمن سياقه لا كفكرة منفصلة.|الأثر العملي:يوضح كيف يظهر تأثير الموضوع في الواقع، وما القرارات أو السلوكيات أو النتائج التي يمكن أن تتغير عند فهمه بصورة صحيحة.|الأخطاء الشائعة:يركز على الالتباسات التي تجعل الناس يسيئون فهم الموضوع، مثل التبسيط الزائد أو الاعتماد على انطباعات عامة بدل تحليل منظم.'
-        }},
-        {name:'create_section',params:{type:'steps'}},
-        {name:'update_text',params:{
-          title:'طريقة عملية للتعامل مع الموضوع',
-          items:'ابدأ بتحديد السؤال الأساسي الذي تريد الإجابة عنه بدل التعامل مع الموضوع بشكل واسع وغير محدد|اجمع المعلومات المهمة من مصادر موثوقة وقارن بينها قبل تكوين رأي نهائي|قسّم الموضوع إلى أسباب ونتائج وأمثلة حتى يصبح التحليل واضحًا وقابلًا للاستخدام|حوّل الفهم إلى إجراء عملي مثل قرار أو خطة أو قائمة مراجعة تساعدك على التطبيق'
-        }}
+        {name:'apply_theme',params:{brand:'#7c3aed',primary:'#7c3aed',card:'#16161a'}},
+        {name:'update_style',params:{selector,background:'linear-gradient(135deg,#0f172a,#16161a)',color:'#ffffff',borderRadius:'20px',boxShadow:'0 10px 30px rgba(0,0,0,0.3)',border:'1px solid rgba(255,255,255,0.12)'}},
+        {name:'update_spacing',params:{selector,padding:'24px',gap:'16px'}},
+        {name:'update_typography',params:{selector,fontSize:'18px',lineHeight:'1.8'}}
       ]
     }
   };
-}
-
-function fallbackTool(message,selectedSelector){
-  const m=String(message||'');
-  if(shouldBuildFullContent(m))return buildPageTool(m);
-  return {name:'update_text',params:{selector:selectedSelector||'body',text:m}};
-}
-
-function isSingleUpdateText(tool){
-  return tool&&tool.name==='update_text';
-}
-
-function hasPlaceholder(tool){
-  const text=JSON.stringify(tool||{});
-  return /عنوان|شرح مختصر|الخطوة الأولى|عنصر1|نص تجريبي|placeholder/i.test(text);
 }
 
 export default async function handler(req,res){
@@ -176,41 +163,24 @@ export default async function handler(req,res){
 
     const content=stripCodeFence(data.choices?.[0]?.message?.content||'{}');
 
-    if(/^\s*<!DOCTYPE/i.test(content)||/^\s*<html/i.test(content)||/^\s*<body/i.test(content)||/document\.write/i.test(content)){
-      return res.status(502).json({
-        error:'AI returned forbidden HTML response',
-        detail:'Only JSON tool responses are allowed from /api/chat.'
-      });
+    if(/^\s*<!DOCTYPE/i.test(content)||/^\s*<html/i.test(content)||/^\s*<body/i.test(content)||/document\.write/i.test(content)||/update_text/i.test(content)){
+      return res.status(200).json({reply:'تم تحسين التصميم',tool:fallbackDesignTool(body.selectedSelector)});
     }
 
     let json;
     try{
       json=JSON.parse(content);
     }catch(parseError){
-      return res.status(502).json({
-        error:'AI returned invalid JSON',
-        detail:'The AI response could not be parsed as JSON. No tool was executed.',
-        raw:content.slice(0,500)
-      });
+      return res.status(200).json({reply:'تم تحسين التصميم',tool:fallbackDesignTool(body.selectedSelector)});
     }
 
-    const buildMode=shouldBuildFullContent(message);
-    const result={reply:json.reply&&json.reply!=='تم فهم الطلب'?json.reply:'تم التنفيذ'};
     let tool=normalizeTool(json.tool);
+    if(!tool)tool=fallbackDesignTool(body.selectedSelector);
 
-    if(buildMode&&(isSingleUpdateText(tool)||!tool||hasPlaceholder(tool))){
-      tool=normalizeTool(buildPageTool(message));
-      result.reply='تم إنشاء محتوى احترافي';
-    }
-
-    if(!tool&&shouldForceTool(message)){
-      tool=normalizeTool(fallbackTool(message,body.selectedSelector));
-      result.reply=buildMode?'تم إنشاء محتوى احترافي':'تم تحويل الطلب إلى إجراء قابل للتنفيذ';
-    }
-
-    if(tool)result.tool=tool;
-
-    return res.status(200).json(result);
+    return res.status(200).json({
+      reply:'تم تحسين التصميم',
+      tool
+    });
 
   }catch(err){
     return res.status(500).json({error:err.message||'Chat failed'});
