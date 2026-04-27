@@ -8,59 +8,73 @@ function normalizeTool(tool){
   return tool;
 }
 
-const SYSTEM_MESSAGE=`أنت نظام Backend لـ S3D Builder.
+const SYSTEM_MESSAGE=`أنت محرك تنفيذ داخل S3D Builder.
 
 ممنوع إرجاع HTML كامل.
 ممنوع إرجاع <!DOCTYPE html> أو <html>.
+ممنوع إرجاع نص فقط إذا كان الطلب قابل للتنفيذ.
 
-يجب أن يكون الرد دائمًا JSON صالح فقط بدون أي نص إضافي.
+يجب دائمًا إرجاع JSON صالح فقط بدون أي نص إضافي.
 
 هيكل الرد الإجباري:
 {
-  "reply": "وصف قصير لما تم",
+  "reply": "وصف قصير",
   "tool": {
     "name": "اسم الأداة",
     "params": { }
   }
 }
 
-القواعد:
-- إذا كان الطلب تعديل عنصر → استخدم tool
-- إذا لم يوجد tool مناسب → أرجع reply فقط بدون tool
-- لا تستخدم markdown
-- لا تستخدم \`\`\`json
-- لا تضف شرح خارج JSON
-- لا تسأل المستخدم عن تفاصيل
-- استخدم selectedSelector إذا كان متوفرًا
-- استخدم أداة واحدة فقط في الرد
+قواعد مهمة:
+- يجب دائمًا اختيار tool وتنفيذه إذا كان الطلب تعديل.
+- لا تكتب "تم فهم الطلب" إطلاقًا.
+- إذا كان الطلب عام، قم بتحويله إلى إجراءات فعلية باستخدام الأدوات.
+- أي طلب فيه "إنشاء" أو "انشاء" أو "تحليل" أو "بناء" أو "create" أو "build" أو "generate" → استخدم create_section أو batch_update.
+- أي محتوى طويل → ضعه داخل text.
+- لا ترجع رد بدون tool إلا إذا كان مستحيل التنفيذ.
+- لا تستخدم markdown.
+- لا تستخدم \`\`\`json.
+- لا تضف شرح خارج JSON.
+- لا تسأل المستخدم عن تفاصيل.
+- استخدم selectedSelector إذا كان متوفرًا.
+- استخدم أداة واحدة فقط في الرد، ويمكن أن تكون batch_update وبداخلها عدة tools.
 
 أمثلة:
 
-1) تغيير نص:
+طلب: "أنشئ صفحة عن التوحد"
+رد:
+{
+  "reply": "تم إنشاء محتوى",
+  "tool": {
+    "name": "batch_update",
+    "params": {
+      "tools": [
+        {
+          "name": "create_section",
+          "params": {"type": "hero"}
+        },
+        {
+          "name": "update_text",
+          "params": {
+            "text": "الدليل التحليلي الشامل للاختلاف العصبي..."
+          }
+        }
+      ]
+    }
+  }
+}
+
+طلب: "غيّر النص"
+رد:
 {
   "reply": "تم تحديث النص",
   "tool": {
     "name": "update_text",
     "params": {
+      "selector": "selectedSelector",
       "text": "النص الجديد"
     }
   }
-}
-
-2) إضافة قسم:
-{
-  "reply": "تم إضافة قسم",
-  "tool": {
-    "name": "create_section",
-    "params": {
-      "type": "text"
-    }
-  }
-}
-
-3) بدون تنفيذ:
-{
-  "reply": "تم فهم الطلب"
 }
 
 أي رد غير JSON سيتم اعتباره خطأ.`;
@@ -71,6 +85,26 @@ function stripCodeFence(text){
     .replace(/^```(?:json)?\s*/i,'')
     .replace(/\s*```$/,'')
     .trim();
+}
+
+function shouldForceTool(message){
+  return /إنشاء|انشاء|تحليل|بناء|create|build|generate|أضف|اضف|غيّر|غير|عدّل|عدل|حسّن|حسن|رتّب|رتب|احذف|حذف/i.test(String(message||''));
+}
+
+function fallbackTool(message,selectedSelector){
+  const m=String(message||'');
+  if(/إنشاء|انشاء|تحليل|بناء|create|build|generate/i.test(m)){
+    return {
+      name:'batch_update',
+      params:{
+        tools:[
+          {name:'create_section',params:{type:'hero'}},
+          {name:'update_text',params:{text:m}}
+        ]
+      }
+    };
+  }
+  return {name:'update_text',params:{selector:selectedSelector||'body',text:m}};
 }
 
 export default async function handler(req,res){
@@ -133,8 +167,14 @@ export default async function handler(req,res){
       });
     }
 
-    const result={reply:json.reply||'تم'};
-    const tool=normalizeTool(json.tool);
+    const result={reply:json.reply&&json.reply!=='تم فهم الطلب'?json.reply:'تم التنفيذ'};
+    let tool=normalizeTool(json.tool);
+
+    if(!tool&&shouldForceTool(message)){
+      tool=normalizeTool(fallbackTool(message,body.selectedSelector));
+      result.reply='تم تحويل الطلب إلى إجراء قابل للتنفيذ';
+    }
+
     if(tool)result.tool=tool;
 
     return res.status(200).json(result);
