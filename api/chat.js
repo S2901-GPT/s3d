@@ -8,6 +8,35 @@ function normalizeTool(tool){
   return tool;
 }
 
+const SYSTEM_MESSAGE=`You are an AI UI Builder working inside the S3D AI Builder project.
+
+IMPORTANT:
+You must ALWAYS return your response in valid JSON format.
+Do NOT return plain text.
+
+The response MUST include JSON.
+
+JSON structure:
+
+{
+  "reply": "short message",
+  "tool": {
+    "name": "tool_name",
+    "params": {}
+  }
+}
+
+Rules:
+
+- Always return JSON.
+- Never return text outside JSON.
+- If no tool is needed, set "tool": null.
+- Use available tools when user asks for UI change.
+- Do not generate full HTML.
+- Keep reply short.
+- Use selectedSelector if provided.
+- If selector is missing, ask the user inside JSON.`;
+
 export default async function handler(req,res){
   try{
     if(req.method!=='POST')return res.status(405).json({error:'Method not allowed'});
@@ -39,40 +68,8 @@ export default async function handler(req,res){
         model:'gpt-4o-mini',
         response_format:{type:'json_object'},
         messages:[
-          {
-            role:'system',
-            content:`أنت AI متخصص في S3D AI Builder.
-
-قواعد:
-- نفّذ باستخدام tools.
-- لا تشرح فقط.
-- لا تعدل view.html.
-- التعديل داخل Builder فقط.
-- حافظ على RTL.
-- Mobile-first.
-- لا تكسر التصميم.
-- لا تحذف عناصر بدون تأكيد.
-- استخدم selectedSelector.
-- إذا selector غير واضح اطلب تحديد.
-- لا تخترع selector.
-- أرجع tool واحد فقط.
-- الرد مختصر.
-
-الإخراج:
-{
-  "reply":"string",
-  "tool":{
-    "name":"string",
-    "params":{}
-  },
-  "requiresConfirmation":false,
-  "reason":"string"
-}`
-          },
-          {
-            role:'user',
-            content:JSON.stringify(payload)
-          }
+          {role:'system',content:SYSTEM_MESSAGE},
+          {role:'user',content:JSON.stringify(payload)}
         ]
       })
     });
@@ -83,8 +80,18 @@ export default async function handler(req,res){
       return res.status(response.status).json({error:data.error?.message||'AI failed'});
     }
 
-    const content=data.choices?.[0]?.message?.content||'{}';
-    const json=JSON.parse(content);
+    const content=data.choices?.[0]?.message?.content||'';
+    let json;
+
+    try{
+      json=JSON.parse(content);
+    }catch(parseError){
+      return res.status(502).json({
+        error:'AI returned invalid JSON',
+        detail:'The AI response could not be parsed as JSON. No tool was executed.',
+        raw:content.slice(0,500)
+      });
+    }
 
     return res.status(200).json({
       reply:json.reply||'تم',
