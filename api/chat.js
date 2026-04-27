@@ -8,11 +8,14 @@ function normalizeTool(tool){
   return tool;
 }
 
-const SYSTEM_MESSAGE=`أنت محرك تنفيذ داخل S3D Builder.
+const SYSTEM_MESSAGE=`أنت محرك بناء محتوى داخل S3D Builder.
 
 ممنوع إرجاع HTML كامل.
 ممنوع إرجاع <!DOCTYPE html> أو <html>.
 ممنوع إرجاع نص فقط إذا كان الطلب قابل للتنفيذ.
+
+أي نص طويل أو عنوان = اعتبره طلب إنشاء محتوى كامل وليس تعديل بسيط.
+ممنوع استخدام update_text فقط في هذه الحالة.
 
 يجب دائمًا إرجاع JSON صالح فقط بدون أي نص إضافي.
 
@@ -29,50 +32,32 @@ const SYSTEM_MESSAGE=`أنت محرك تنفيذ داخل S3D Builder.
 - يجب دائمًا اختيار tool وتنفيذه إذا كان الطلب تعديل.
 - لا تكتب "تم فهم الطلب" إطلاقًا.
 - إذا كان الطلب عام، قم بتحويله إلى إجراءات فعلية باستخدام الأدوات.
-- أي طلب فيه "إنشاء" أو "انشاء" أو "تحليل" أو "بناء" أو "create" أو "build" أو "generate" → استخدم create_section أو batch_update.
+- أي طلب فيه "إنشاء" أو "انشاء" أو "تحليل" أو "بناء" أو "create" أو "build" أو "generate" → استخدم batch_update.
+- أي نص طويل أو عنوان طويل → استخدم batch_update + create_section + update_text.
+- يجب بناء صفحة كاملة تحتوي على Hero و Text و Cards أو Steps.
 - أي محتوى طويل → ضعه داخل text.
 - لا ترجع رد بدون tool إلا إذا كان مستحيل التنفيذ.
 - لا تستخدم markdown.
 - لا تستخدم \`\`\`json.
 - لا تضف شرح خارج JSON.
 - لا تسأل المستخدم عن تفاصيل.
-- استخدم selectedSelector إذا كان متوفرًا.
+- استخدم selectedSelector إذا كان متوفرًا للتعديلات فقط، وليس عند بناء صفحة كاملة.
 - استخدم أداة واحدة فقط في الرد، ويمكن أن تكون batch_update وبداخلها عدة tools.
 
-أمثلة:
-
-طلب: "أنشئ صفحة عن التوحد"
-رد:
+هيكل بناء صفحة كاملة:
 {
-  "reply": "تم إنشاء محتوى",
+  "reply": "تم إنشاء صفحة كاملة",
   "tool": {
     "name": "batch_update",
     "params": {
       "tools": [
-        {
-          "name": "create_section",
-          "params": {"type": "hero"}
-        },
-        {
-          "name": "update_text",
-          "params": {
-            "text": "الدليل التحليلي الشامل للاختلاف العصبي..."
-          }
-        }
+        { "name": "create_section", "params": {"type": "hero"} },
+        { "name": "update_text", "params": {"title": "العنوان", "text": "الوصف"} },
+        { "name": "create_section", "params": {"type": "text"} },
+        { "name": "update_text", "params": {"text": "شرح مفصل"} },
+        { "name": "create_section", "params": {"type": "cards"} },
+        { "name": "update_text", "params": {"items": "عنصر1:شرح|عنصر2:شرح"} }
       ]
-    }
-  }
-}
-
-طلب: "غيّر النص"
-رد:
-{
-  "reply": "تم تحديث النص",
-  "tool": {
-    "name": "update_text",
-    "params": {
-      "selector": "selectedSelector",
-      "text": "النص الجديد"
     }
   }
 }
@@ -87,24 +72,43 @@ function stripCodeFence(text){
     .trim();
 }
 
+function shouldBuildFullContent(message){
+  const m=String(message||'').trim();
+  if(/إنشاء|انشاء|تحليل|بناء|صفحة|create|build|generate/i.test(m))return true;
+  return m.length>=45 && !/غيّر|غير|عدّل|عدل|احذف|حذف|لون|خط|كبّر|صغّر/i.test(m);
+}
+
 function shouldForceTool(message){
-  return /إنشاء|انشاء|تحليل|بناء|create|build|generate|أضف|اضف|غيّر|غير|عدّل|عدل|حسّن|حسن|رتّب|رتب|احذف|حذف/i.test(String(message||''));
+  return /إنشاء|انشاء|تحليل|بناء|create|build|generate|أضف|اضف|غيّر|غير|عدّل|عدل|حسّن|حسن|رتّب|رتب|احذف|حذف/i.test(String(message||'')) || shouldBuildFullContent(message);
+}
+
+function buildPageTool(message){
+  const topic=String(message||'صفحة محتوى').replace(/^(أنشئ|انشئ|إنشاء|انشاء|بناء|ابن|create|build|generate)\s*/i,'').trim()||'صفحة محتوى';
+  return {
+    name:'batch_update',
+    params:{
+      tools:[
+        {name:'create_section',params:{type:'hero'}},
+        {name:'update_text',params:{title:topic,text:'مقدمة منظمة تعرض الفكرة الأساسية وتضع القارئ في سياق واضح ومباشر.'}},
+        {name:'create_section',params:{type:'text'}},
+        {name:'update_text',params:{title:'شرح تفصيلي',text:'شرح مفصل ومنظم حول '+topic+'، يتناول المفهوم الأساسي، أهميته، أبرز النقاط المرتبطة به، وكيف يمكن فهمه أو تطبيقه بصورة عملية وواضحة.'}},
+        {name:'create_section',params:{type:'cards'}},
+        {name:'update_text',params:{title:'محاور رئيسية',items:'المفهوم الأساسي:تعريف مبسط وواضح للموضوع|الأهمية:لماذا يعتبر هذا الموضوع مهمًا للقارئ|أمثلة عملية:أمثلة تساعد على تحويل الفكرة إلى فهم قابل للتطبيق'}},
+        {name:'create_section',params:{type:'steps'}},
+        {name:'update_text',params:{title:'خطوات الفهم',items:'ابدأ بتحديد الفكرة الرئيسية|قسّم الموضوع إلى محاور صغيرة|اربط كل محور بمثال واقعي|راجع الخلاصة وحدد الإجراء التالي'}}
+      ]
+    }
+  };
 }
 
 function fallbackTool(message,selectedSelector){
   const m=String(message||'');
-  if(/إنشاء|انشاء|تحليل|بناء|create|build|generate/i.test(m)){
-    return {
-      name:'batch_update',
-      params:{
-        tools:[
-          {name:'create_section',params:{type:'hero'}},
-          {name:'update_text',params:{text:m}}
-        ]
-      }
-    };
-  }
+  if(shouldBuildFullContent(m))return buildPageTool(m);
   return {name:'update_text',params:{selector:selectedSelector||'body',text:m}};
+}
+
+function isSingleUpdateText(tool){
+  return tool&&tool.name==='update_text';
 }
 
 export default async function handler(req,res){
@@ -167,12 +171,18 @@ export default async function handler(req,res){
       });
     }
 
+    const buildMode=shouldBuildFullContent(message);
     const result={reply:json.reply&&json.reply!=='تم فهم الطلب'?json.reply:'تم التنفيذ'};
     let tool=normalizeTool(json.tool);
 
+    if(buildMode&&isSingleUpdateText(tool)){
+      tool=normalizeTool(buildPageTool(message));
+      result.reply='تم إنشاء صفحة كاملة';
+    }
+
     if(!tool&&shouldForceTool(message)){
       tool=normalizeTool(fallbackTool(message,body.selectedSelector));
-      result.reply='تم تحويل الطلب إلى إجراء قابل للتنفيذ';
+      result.reply=buildMode?'تم إنشاء صفحة كاملة':'تم تحويل الطلب إلى إجراء قابل للتنفيذ';
     }
 
     if(tool)result.tool=tool;
