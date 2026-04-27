@@ -1,1 +1,11 @@
-{"scripts":{"dev":"vercel dev","start":"vercel dev"},"dependencies":{"@vercel/kv":"latest","openai":"latest"},"devDependencies":{"vercel":"latest"},"type":"module"}
+{
+  "name": "s3d-ai-builder",
+  "version": "2.0.0",
+  "scripts": {
+    "start": "node api/chat.js"
+  },
+  "dependencies": {
+    "openai": "^4.28.0",
+    "@vercel/kv": "^1.0.1"
+  }
+}
