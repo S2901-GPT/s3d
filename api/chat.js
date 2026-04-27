@@ -1,11 +1,13 @@
 import { OpenAI } from 'openai';
-const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
 export default async function handler(req, res) {
-    if (req.method !== 'POST') return res.status(405).send();
+    if (req.method !== 'POST') return res.status(405).json({ error: 'Method Not Allowed' });
     
     try {
-        const { message } = req.body;
+        const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+        const body = typeof req.body === 'string' ? JSON.parse(req.body) : req.body;
+        const { message } = body;
+        
         const response = await openai.chat.completions.create({
             model: "gpt-4o-mini",
             messages: [
@@ -16,12 +18,11 @@ export default async function handler(req, res) {
                 type: "function",
                 function: {
                     name: "create_component",
-                    description: "إنشاء عنصر تفاعلي جديد في الصفحة",
                     parameters: {
                         type: "object",
                         properties: {
                             type: { type: "string", enum: ["Hero", "Define", "Choice"] },
-                            data: { type: "object", description: "بيانات المكون حسب نوعه" }
+                            data: { type: "object" }
                         },
                         required: ["type", "data"]
                     }
