@@ -8,7 +8,9 @@ function normalizeTool(tool){
   return tool;
 }
 
-const SYSTEM_MESSAGE=`أنت تعمل داخل S3D Builder.
+const SYSTEM_MESSAGE=`أنت محرك بناء محتوى احترافي داخل S3D Builder.
+
+الهدف ليس إنشاء أقسام فقط، بل إنشاء محتوى عميق ومفيد.
 
 قواعد التنفيذ الإلزامية:
 
@@ -19,22 +21,33 @@ const SYSTEM_MESSAGE=`أنت تعمل داخل S3D Builder.
 
 2) أي طلب يجب تنفيذه باستخدام tools فقط.
 
-3) إذا كان الطلب:
-- قصير → استخدم update_text
-- طويل / عنوان / يحتوي "دليل" أو "تحليل" أو "شرح" → أنشئ صفحة كاملة
+3) ممنوع إنشاء محتوى فارغ أو placeholder مثل:
+- "عنوان"
+- "شرح مختصر"
+- "الخطوة الأولى"
+- "عنصر1"
+- "نص تجريبي"
+هذا يعتبر فشل.
 
-4) عند إنشاء صفحة:
-يجب استخدام batch_update ويحتوي على:
-- create_section (hero)
-- update_text
-- create_section (text)
-- update_text
-- create_section (cards أو steps)
-- update_text
+4) إذا كان الطلب:
+عنوان كبير / دليل / تحليل / شرح / نص طويل
+→ يجب إنشاء محتوى حقيقي مفصل باستخدام batch_update.
 
-5) الرد يجب أن يكون JSON فقط بدون markdown أو شرح:
+5) عند إنشاء الصفحة استخدم batch_update ويجب أن يحتوي على:
+- Hero: عنوان قوي + وصف احترافي واضح
+- Text: شرح عميق 3 إلى 5 أسطر على الأقل
+- Cards: كل بطاقة تحتوي عنوان واضح + شرح مفيد وليس جملة واحدة
+- Steps: خطوات حقيقية مفهومة وليست placeholders
+
+6) أسلوب الكتابة:
+- عربي واضح
+- بدون حشو
+- معلومات حقيقية ومترابطة
+- لا تستخدم كلمات عامة
+
+7) الرد يجب أن يكون JSON فقط بدون markdown أو شرح:
 {
-  "reply": "تم التنفيذ",
+  "reply": "تم إنشاء محتوى احترافي",
   "tool": {
     "name": "batch_update",
     "params": {
@@ -43,15 +56,16 @@ const SYSTEM_MESSAGE=`أنت تعمل داخل S3D Builder.
   }
 }
 
-6) ممنوع:
+8) ممنوع:
 - إرسال نص عادي بدون tool
 - إرسال HTML
 - إرسال \`\`\`json أو \`\`\`html
+- استخدام update_text فقط في طلبات المحتوى الكبير
 
-7) الهدف:
+9) الهدف:
 تنفيذ التعديل داخل الصفحة الحالية فقط بدون استبدالها.
 
-أي رد غير JSON سيتم اعتباره خطأ.`;
+أي رد غير JSON أو أي محتوى سطحي سيتم اعتباره خطأ.`;
 
 function stripCodeFence(text){
   return String(text||'')
@@ -74,20 +88,32 @@ function shouldForceTool(message){
 function buildPageTool(message){
   const topic=String(message||'صفحة محتوى')
     .replace(/^(أنشئ|انشئ|إنشاء|انشاء|بناء|ابن|create|build|generate)\s*/i,'')
-    .trim()||'صفحة محتوى';
+    .trim()||'صفحة محتوى احترافية';
 
   return {
     name:'batch_update',
     params:{
       tools:[
         {name:'create_section',params:{type:'hero'}},
-        {name:'update_text',params:{title:topic,text:'مقدمة واضحة ومنظمة تعرض الموضوع بأسلوب مباشر مناسب للجوال وتضع القارئ في سياق سريع.'}},
+        {name:'update_text',params:{
+          title:'دليل احترافي حول '+topic,
+          text:'صفحة منظمة تقدم '+topic+' بطريقة واضحة وعملية. تبدأ بتوضيح الفكرة الأساسية، ثم تنتقل إلى التفاصيل المهمة التي تساعد القارئ على الفهم واتخاذ قرار أو بناء تصور صحيح. الهدف أن يحصل القارئ على محتوى مفيد ومترابط، وليس مجرد عناوين عامة.'
+        }},
         {name:'create_section',params:{type:'text'}},
-        {name:'update_text',params:{title:'شرح شامل',text:'شرح مفصل حول '+topic+'، يتناول الفكرة الرئيسية، الخلفية، النقاط المهمة، وأفضل طريقة لفهم الموضوع أو تطبيقه داخل سياق عملي واضح.'}},
+        {name:'update_text',params:{
+          title:'فهم الموضوع بعمق',
+          text:'يعتمد فهم '+topic+' على ربط المفهوم بالسياق العملي الذي يظهر فيه. لذلك لا يكفي تعريفه بشكل مختصر؛ يجب معرفة أسبابه، آثاره، وكيف يتغير تأثيره بحسب الأشخاص أو البيئة أو طريقة التطبيق. عندما يتم تقسيم الموضوع إلى محاور واضحة، يصبح التعامل معه أسهل وأكثر دقة. هذا القسم يقدم شرحًا مركزًا يساعد القارئ على تكوين صورة متكاملة دون الدخول في تفاصيل مشتتة.'
+        }},
         {name:'create_section',params:{type:'cards'}},
-        {name:'update_text',params:{title:'محاور رئيسية',items:'الفكرة الأساسية:تعريف مبسط وواضح للموضوع|الأهمية:لماذا يستحق هذا الموضوع الانتباه|التطبيق العملي:كيف يمكن تحويل الفكرة إلى خطوات قابلة للتنفيذ'}},
+        {name:'update_text',params:{
+          title:'محاور رئيسية يجب الانتباه لها',
+          items:'المفهوم الأساسي:يعرض هذا المحور المعنى الحقيقي للموضوع بعيدًا عن التعريفات السطحية، مع توضيح لماذا يحتاج القارئ إلى فهمه ضمن سياقه لا كفكرة منفصلة.|الأثر العملي:يوضح كيف يظهر تأثير الموضوع في الواقع، وما القرارات أو السلوكيات أو النتائج التي يمكن أن تتغير عند فهمه بصورة صحيحة.|الأخطاء الشائعة:يركز على الالتباسات التي تجعل الناس يسيئون فهم الموضوع، مثل التبسيط الزائد أو الاعتماد على انطباعات عامة بدل تحليل منظم.'
+        }},
         {name:'create_section',params:{type:'steps'}},
-        {name:'update_text',params:{title:'خطوات عملية',items:'حدد الهدف من الصفحة|اقرأ المحاور الرئيسية|اربط كل محور بمثال واقعي|استخدم الخلاصة لاتخاذ قرار أو إجراء'}}
+        {name:'update_text',params:{
+          title:'طريقة عملية للتعامل مع الموضوع',
+          items:'ابدأ بتحديد السؤال الأساسي الذي تريد الإجابة عنه بدل التعامل مع الموضوع بشكل واسع وغير محدد|اجمع المعلومات المهمة من مصادر موثوقة وقارن بينها قبل تكوين رأي نهائي|قسّم الموضوع إلى أسباب ونتائج وأمثلة حتى يصبح التحليل واضحًا وقابلًا للاستخدام|حوّل الفهم إلى إجراء عملي مثل قرار أو خطة أو قائمة مراجعة تساعدك على التطبيق'
+        }}
       ]
     }
   };
@@ -101,6 +127,11 @@ function fallbackTool(message,selectedSelector){
 
 function isSingleUpdateText(tool){
   return tool&&tool.name==='update_text';
+}
+
+function hasPlaceholder(tool){
+  const text=JSON.stringify(tool||{});
+  return /عنوان|شرح مختصر|الخطوة الأولى|عنصر1|نص تجريبي|placeholder/i.test(text);
 }
 
 export default async function handler(req,res){
@@ -167,14 +198,14 @@ export default async function handler(req,res){
     const result={reply:json.reply&&json.reply!=='تم فهم الطلب'?json.reply:'تم التنفيذ'};
     let tool=normalizeTool(json.tool);
 
-    if(buildMode&&isSingleUpdateText(tool)){
+    if(buildMode&&(isSingleUpdateText(tool)||!tool||hasPlaceholder(tool))){
       tool=normalizeTool(buildPageTool(message));
-      result.reply='تم إنشاء صفحة كاملة';
+      result.reply='تم إنشاء محتوى احترافي';
     }
 
     if(!tool&&shouldForceTool(message)){
       tool=normalizeTool(fallbackTool(message,body.selectedSelector));
-      result.reply=buildMode?'تم إنشاء صفحة كاملة':'تم تحويل الطلب إلى إجراء قابل للتنفيذ';
+      result.reply=buildMode?'تم إنشاء محتوى احترافي':'تم تحويل الطلب إلى إجراء قابل للتنفيذ';
     }
 
     if(tool)result.tool=tool;
