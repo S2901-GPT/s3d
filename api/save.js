@@ -6,9 +6,11 @@ export default async function handler(req, res) {
     const name = body.name || 'screen';
     if (!html) return res.status(400).json({ error: 'Missing html' });
 
-    const url = process.env.KV_REST_API_URL || process.env.STORAGE_REST_API_URL;
-    const token = process.env.KV_REST_API_TOKEN || process.env.STORAGE_REST_API_TOKEN;
-    if (!url || !token) return res.status(500).json({ error: 'KV env variables missing' });
+    const url = process.env.KV_REST_API_URL || process.env.STORAGE_KV_REST_API_URL || process.env.STORAGE_REST_API_URL;
+    const token = process.env.KV_REST_API_TOKEN || process.env.STORAGE_KV_REST_API_TOKEN || process.env.STORAGE_REST_API_TOKEN;
+    if (!url || !token) {
+      return res.status(500).json({ error: 'KV env variables missing: check KV_REST_API_URL / KV_REST_API_TOKEN or STORAGE_KV_REST_API_URL / STORAGE_KV_REST_API_TOKEN in Vercel' });
+    }
 
     const id = Math.random().toString(36).slice(2, 8) + Date.now().toString(36).slice(-4);
     const payload = JSON.stringify({ id, name, html, createdAt: new Date().toISOString() });
