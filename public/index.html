@@ -43,29 +43,42 @@
     <script src="js/ai-tools.js"></script>
     <script>
         let conversationHistory = [];
+
         async function ask() {
             const btn = event.target;
             const inp = document.getElementById('inp');
             const chat = document.getElementById('chat');
             if(!inp.value.trim()) return;
+
             const userMsg = inp.value;
             conversationHistory.push({ role: "user", content: userMsg });
+            
             btn.disabled = true; btn.innerText = "جاري البناء...";
             chat.innerHTML += `<div class="bg-slate-100 p-4 rounded-2xl rounded-tl-none text-slate-700 self-end">${userMsg}</div>`;
             inp.value = '';
             chat.scrollTop = chat.scrollHeight;
+
             try {
-                const res = await fetch('/api/chat', { method:'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ messages: conversationHistory }) });
+                const res = await fetch('/api/chat', { 
+                    method:'POST', 
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({ messages: conversationHistory }) 
+                });
+                
                 const data = await res.json();
+                
                 if(res.ok) {
                     if(data.tool_calls) {
                         data.tool_calls.forEach(c => {
                             const args = JSON.parse(c.function.arguments);
-                            S3D_Engine.create_component(args.type, args.data);
+                            const componentData = args.data ? args.data : args;
+                            S3D_Engine.create_component(args.type, componentData);
                         });
                     }
+                    
                     const aiReply = data.reply || 'تم تنفيذ طلبك وبناء القسم بنجاح!';
                     chat.innerHTML += `<div class="bg-teal-50 p-4 rounded-2xl rounded-tr-none text-teal-900 border border-teal-100 animate-fade-in">${aiReply}</div>`;
+                    
                     conversationHistory.push({ role: "assistant", content: aiReply });
                 } else {
                     chat.innerHTML += `<div class="bg-red-50 p-4 rounded-2xl text-red-600 border border-red-100 italic font-bold">خطأ من الخادم: ${data.error || 'حدث خطأ غير معروف'}</div>`;
@@ -77,10 +90,15 @@
                 chat.scrollTop = chat.scrollHeight;
             }
         }
+
         async function save() {
             const html = document.getElementById('canvas-root').innerHTML;
             if(!html) return alert("الصفحة فارغة!");
-            const res = await fetch('/api/save', { method:'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ html }) });
+            const res = await fetch('/api/save', { 
+                method:'POST', 
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({ html }) 
+            });
             const d = await res.json();
             if(res.ok) window.open('/view.html?id=' + d.id, '_blank');
             else alert("حدث خطأ أثناء الحفظ.");
