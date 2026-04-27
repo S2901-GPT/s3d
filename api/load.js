@@ -19,11 +19,13 @@ export default async function handler(req, res) {
     if (!data || data.result == null) return res.status(404).json({ error: 'Not found' });
 
     let parsed = data.result;
-    if (typeof parsed === 'string') {
-      try { parsed = JSON.parse(parsed); } catch (e) { parsed = { html: parsed }; }
+    for (let i = 0; i < 3 && typeof parsed === 'string'; i++) {
+      try { parsed = JSON.parse(parsed); } catch (e) { break; }
     }
 
-    return res.status(200).json(parsed);
+    if (typeof parsed === 'string') parsed = { html: parsed };
+    if (parsed && parsed.html && typeof parsed.html === 'string') return res.status(200).json(parsed);
+    return res.status(200).json({ html: '' });
   } catch (err) {
     return res.status(500).json({ error: err.message || 'Load failed' });
   }
