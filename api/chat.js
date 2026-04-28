@@ -5,58 +5,74 @@ export default async function handler(req, res) {
     
     try {
         const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
-        const body = typeof req.body === 'string' ? JSON.parse(req.body) : req.body;
-        const { messages } = body;
+        const { messages, currentHtml } = req.body;
         
         const systemMessage = { 
             role: "system", 
-            content: `أنت خبير محتوى علمي وطبي ومصمم صفحات SaaS تفاعلية.
-مهمتك: توليد محتوى دقيق، مفصل، وحقيقي، وعرضه باستخدام أداة create_component.
+            content: `أنت مهندس برمجيات ومصمم واجهات (Premium UI/UX) خبير في بناء أنظمة SaaS التفاعلية. تمتلك **حرية مطلقة**.
 
-🚨 قواعد صارمة جداً إياك مخالفتها:
-1. ممنوع منعاً باتاً إرسال بيانات فارغة أو نصوص افتراضية مثل "عنوان القسم" أو "وصف هنا".
-2. يجب أن تملأ كائن "data" بالبيانات الحقيقية بالكامل بناءً على نوع المكون.
-3. إذا استخدمت (Card)، يجب أن تكتب تفاصيل داخل challenges و advantages و analysis.
-4. إذا استخدمت (Accordion)، يجب أن تضع بيانات حقيقية داخل accordionItems.
-5. إذا استخدمت (List)، يجب أن تضع نصوصاً داخل listItems.
-6. اكتب دائماً محتوى غني، منطقي، وطويل نسبياً يفيد القارئ.`
+حالة الصفحة الحالية (HTML):
+\`\`\`html
+${currentHtml || 'فارغة'}
+\`\`\`
+
+🚨 قواعد البناء الشامل (The Master Builder Rules):
+1. **لا تقيد نفسك بموضوع:** المحتوى قد يكون عن التجارة، البرمجة، الرياضة، علم النفس، أو أي شيء يطلبه المستخدم.
+2. **بناء الشاشات الكاملة (One-Shot Generation):** إذا طلب المستخدم "شاشة كاملة"، "لوحة مثل كنين"، أو "موضوعاً شاملاً"، **إياك أن تبني عنصراً واحداً فقط**. يجب عليك تصميم صفحة متكاملة دفعة واحدة! قم باستدعاء أداة (create_component) عدة مرات متتالية في نفس الرد (مثلاً: Hero ثم عدة Cards ثم Accordion)، أو استخدم (update_page_html) لكتابة كود صفحة كاملة فاخرة تحتوي على تبويبات وبطاقات.
+3. **الفخامة المطلقة (Premium Design):** استخدم Tailwind ببراعة. ضع ظلالاً عميقة (shadow-2xl)، حواف ناعمة جداً (rounded-[2rem] أو rounded-3xl)، مساحات مريحة (p-8, gap-6)، وألواناً هادئة ومتناسقة.
+4. **تطابق المحتوى (القاعدة الذهبية):** إذا طُلب منك تعديل شيء موجود، اقرأ نصوصه الحالية من الـ HTML المرفق، وحافظ عليها حرفياً. غير التصميم والهيكلة فقط واستخدم (replace_element) أو (update_page_html).
+
+تعليمات الأدوات:
+- (create_component): لبناء العناصر الجاهزة. يمكنك استدعاؤها أكثر من مرة لبناء صفحة كاملة.
+- (replace_element): لتعديل قسم محدد (عبر الـ ID) دون لمس الباقي.
+- (update_page_html): لدمج الأقسام أو بناء شاشة كاملة معقدة من الصفر.
+- (inject_custom_html): لأي تصميم مبتكر لا تتوفر له قوالب.`
         };
 
         const response = await openai.chat.completions.create({
             model: "gpt-4o-mini",
             messages: [systemMessage, ...messages],
-            tools: [{
-                type: "function",
-                function: {
-                    name: "create_component",
-                    description: "بناء عنصر تفاعلي في الصفحة. يجب إرفاق المحتوى كاملاً.",
-                    parameters: {
-                        type: "object",
-                        properties: {
-                            type: { type: "string", enum: ["Hero", "Define", "Choice", "Card", "Accordion", "List"] },
-                            data: { 
-                                type: "object",
-                                description: "البيانات الفعلية للمكون (يجب تعبئتها وعدم تركها فارغة)",
-                                properties: {
-                                    title: { type: "string", description: "عنوان القسم أو البطاقة" },
-                                    description: { type: "string", description: "الوصف التفصيلي" },
-                                    word: { type: "string" },
-                                    definition: { type: "string" },
-                                    question: { type: "string" },
-                                    options: { type: "array", items: { type: "object", properties: { label: { type: "string" }, result: { type: "string" } } } },
-                                    challenges: { type: "array", items: { type: "object", properties: { title: { type: "string" }, example: { type: "string" } } } },
-                                    advantages: { type: "array", items: { type: "object", properties: { title: { type: "string" }, example: { type: "string" } } } },
-                                    analysis: { type: "string" },
-                                    accordionItems: { type: "array", items: { type: "object", properties: { title: { type: "string" }, content: { type: "string" } } } },
-                                    listItems: { type: "array", items: { type: "string" } },
-                                    isNumbered: { type: "boolean" }
-                                }
-                            }
-                        },
-                        required: ["type", "data"]
+            tools: [
+                {
+                    type: "function",
+                    function: {
+                        name: "create_component",
+                        description: "بناء أقسام المنصة الفاخرة. استدعِ هذه الأداة عدة مرات لبناء صفحة كاملة.",
+                        parameters: { type: "object", properties: { type: { type: "string", enum: ["Hero", "Define", "Choice", "Card", "Accordion", "List"] }, data: { type: "object" } }, required: ["type", "data"] }
+                    }
+                },
+                {
+                    type: "function",
+                    function: {
+                        name: "replace_element",
+                        description: "استبدال محتوى قسم محدد بدقة مع الحفاظ على نصوصه السابقة.",
+                        parameters: {
+                            type: "object",
+                            properties: {
+                                target_id: { type: "string" },
+                                html: { type: "string" }
+                            },
+                            required: ["target_id", "html"]
+                        }
+                    }
+                },
+                {
+                    type: "function",
+                    function: {
+                        name: "update_page_html",
+                        description: "بناء أو تعديل الـ HTML الكامل للصفحة. ممتاز لبناء شاشات معقدة دفعة واحدة.",
+                        parameters: { type: "object", properties: { html: { type: "string" } }, required: ["html"] }
+                    }
+                },
+                {
+                    type: "function",
+                    function: {
+                        name: "inject_custom_html",
+                        description: "حقن كود حر جديد كلياً.",
+                        parameters: { type: "object", properties: { html: { type: "string" } }, required: ["html"] }
                     }
                 }
-            }],
+            ],
             tool_choice: "auto"
         });
 
