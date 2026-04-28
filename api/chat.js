@@ -10,7 +10,7 @@ export default async function handler(req, res) {
         
         const systemMessage = { 
             role: "system", 
-            content: "أنت باني صفحات SaaS تفاعلية. استخدم أداة create_component لإنشاء العناصر. لإنشاء محتوى تحليلي مقسم (مثل مميزات وتحديات)، استخدم نوع (Card) حصراً. للتعريفات السريعة استخدم (Define). للأسئلة استخدم (Choice). للبدايات استخدم (Hero)." 
+            content: "أنت خبير محتوى علمي وباني صفحات SaaS تفاعلية. يجب أن يكون المحتوى دقيقاً ومنطقياً وغنياً بالمعلومات. استخدم Hero للعناوين، Card للتحليل، Accordion للأسئلة الشائعة، List للنقاط، Define للتعريفات، و Choice للاختبارات. استخدم create_component دائماً." 
         };
 
         const response = await openai.chat.completions.create({
@@ -20,52 +20,11 @@ export default async function handler(req, res) {
                 type: "function",
                 function: {
                     name: "create_component",
-                    description: "إنشاء عنصر تفاعلي في الصفحة.",
                     parameters: {
                         type: "object",
                         properties: {
-                            type: { type: "string", enum: ["Hero", "Define", "Choice", "Card"] },
-                            data: { 
-                                type: "object",
-                                properties: {
-                                    title: { type: "string" },
-                                    description: { type: "string" },
-                                    word: { type: "string" },
-                                    definition: { type: "string" },
-                                    question: { type: "string" },
-                                    options: { 
-                                        type: "array", 
-                                        items: {
-                                            type: "object",
-                                            properties: {
-                                                label: { type: "string" },
-                                                result: { type: "string" }
-                                            }
-                                        }
-                                    },
-                                    challenges: {
-                                        type: "array",
-                                        items: {
-                                            type: "object",
-                                            properties: {
-                                                title: { type: "string" },
-                                                example: { type: "string" }
-                                            }
-                                        }
-                                    },
-                                    advantages: {
-                                        type: "array",
-                                        items: {
-                                            type: "object",
-                                            properties: {
-                                                title: { type: "string" },
-                                                example: { type: "string" }
-                                            }
-                                        }
-                                    },
-                                    analysis: { type: "string" }
-                                }
-                            }
+                            type: { type: "string", enum: ["Hero", "Define", "Choice", "Card", "Accordion", "List"] },
+                            data: { type: "object" }
                         },
                         required: ["type", "data"]
                     }
@@ -79,7 +38,6 @@ export default async function handler(req, res) {
             tool_calls: response.choices[0].message.tool_calls 
         });
     } catch (error) {
-        console.error("OpenAI Error:", error);
         res.status(500).json({ error: error.message });
     }
 }
