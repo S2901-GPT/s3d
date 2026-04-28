@@ -10,7 +10,7 @@ export default async function handler(req, res) {
         
         const systemMessage = { 
             role: "system", 
-            content: "أنت باني صفحات تفاعلية. مهمتك بناء عناصر الصفحة بناءً على طلب المستخدم. استدعِ الأداة (create_component) دائماً. البيانات المطلوبة لـ Hero هي (title و description). البيانات المطلوبة لـ Define هي (word و definition). البيانات المطلوبة لـ Choice هي (question و options)." 
+            content: "أنت باني صفحات SaaS تفاعلية. استخدم أداة create_component لإنشاء العناصر. لإنشاء محتوى تحليلي مقسم (مثل مميزات وتحديات)، استخدم نوع (Card) حصراً. للتعريفات السريعة استخدم (Define). للأسئلة استخدم (Choice). للبدايات استخدم (Hero)." 
         };
 
         const response = await openai.chat.completions.create({
@@ -20,11 +20,11 @@ export default async function handler(req, res) {
                 type: "function",
                 function: {
                     name: "create_component",
-                    description: "إنشاء عنصر جديد",
+                    description: "إنشاء عنصر تفاعلي في الصفحة.",
                     parameters: {
                         type: "object",
                         properties: {
-                            type: { type: "string", enum: ["Hero", "Define", "Choice"] },
+                            type: { type: "string", enum: ["Hero", "Define", "Choice", "Card"] },
                             data: { 
                                 type: "object",
                                 properties: {
@@ -42,11 +42,32 @@ export default async function handler(req, res) {
                                                 result: { type: "string" }
                                             }
                                         }
-                                    }
+                                    },
+                                    challenges: {
+                                        type: "array",
+                                        items: {
+                                            type: "object",
+                                            properties: {
+                                                title: { type: "string" },
+                                                example: { type: "string" }
+                                            }
+                                        }
+                                    },
+                                    advantages: {
+                                        type: "array",
+                                        items: {
+                                            type: "object",
+                                            properties: {
+                                                title: { type: "string" },
+                                                example: { type: "string" }
+                                            }
+                                        }
+                                    },
+                                    analysis: { type: "string" }
                                 }
                             }
                         },
-                        required: ["type"]
+                        required: ["type", "data"]
                     }
                 }
             }],
@@ -58,6 +79,7 @@ export default async function handler(req, res) {
             tool_calls: response.choices[0].message.tool_calls 
         });
     } catch (error) {
+        console.error("OpenAI Error:", error);
         res.status(500).json({ error: error.message });
     }
 }
